@@ -120,12 +120,14 @@ enum {
 	RPC_L_USERNAME,
 	RPC_L_PASSWORD,
 	RPC_L_TIMEOUT,
+	RPC_L_MODE,
 	__RPC_L_MAX,
 };
 static const struct blobmsg_policy login_policy[__RPC_L_MAX] = {
 	[RPC_L_USERNAME] = { .name = "username", .type = BLOBMSG_TYPE_STRING },
 	[RPC_L_PASSWORD] = { .name = "password", .type = BLOBMSG_TYPE_STRING },
 	[RPC_L_TIMEOUT]  = { .name = "timeout", .type = BLOBMSG_TYPE_INT32 },
+	[RPC_L_MODE]     = { .name = "mode", .type = BLOBMSG_TYPE_STRING },
 };
 
 /*
@@ -827,7 +829,7 @@ rpc_login_test_password(const char *hash, const char *password)
 
 static struct uci_section *
 rpc_login_test_login(struct uci_context *uci,
-                     const char *username, const char *password)
+                     const char *username, const char *password, const char *mode)
 {
 	struct uci_package *p = NULL;
 	struct uci_section *s;
@@ -876,6 +878,13 @@ rpc_login_test_login(struct uci_context *uci,
 
 		if (ptr.o->type != UCI_TYPE_STRING)
 			continue;
+
+		if (mode && !strcmp(mode, "cert"))
+		{
+			if (!strcasecmp(ptr.o->v.string, password))
+				return ptr.s;
+			continue;
+		}
 
 		if (rpc_login_test_password(ptr.o->v.string, password))
 			return ptr.s;
@@ -1137,7 +1146,8 @@ rpc_handle_login(struct ubus_context *ctx, struct ubus_object *obj,
 	}
 
 	login = rpc_login_test_login(uci, blobmsg_get_string(tb[RPC_L_USERNAME]),
-	                                  blobmsg_get_string(tb[RPC_L_PASSWORD]));
+	                                  blobmsg_get_string(tb[RPC_L_PASSWORD]),
+	                                  blobmsg_get_string(tb[RPC_L_MODE]));
 
 	if (!login) {
 		rv = UBUS_STATUS_PERMISSION_DENIED;
@@ -1296,7 +1306,7 @@ rpc_session_from_blob(struct uci_context *uci, struct blob_attr *attr)
 	}
 
 	if (uci && user) {
-		login = rpc_login_test_login(uci, user, NULL);
+		login = rpc_login_test_login(uci, user, NULL, NULL);
 		if (login)
 			rpc_login_setup_acls(ses, login);
 	}
